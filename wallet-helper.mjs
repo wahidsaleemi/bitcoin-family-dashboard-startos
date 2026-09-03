@@ -773,19 +773,51 @@ probeAllProviders().then(() => {
 
 // Background retry: if any configured wallet still needs a balance (no
 // successful scan yet — e.g. providers were down/rate-limited), retry the
-// scan periodically so the dashboard eventually shows a real balance and
-// the health check can stop reporting "still scanning". Guards against
-// concurrent scans with a simple in-flight flag.
+// scan so the dashboard eventually shows a real balance and the health
+// check can stop reporting "still scanning". Guards against concurrent
+// scans with a simple in-flight flag.
+//
+// CRITICAL: back off aggressively on repeated failure. Public address APIs
+// (blockstream/blockcypher/blockchain.info) block shared egress IPs for
+// HOURS once triggered; retrying every 2 minutes keeps re-triggering the
+// block and it never lifts. Track consecutive failures and space retries
+// out: 2m → 5m → 15m → 30m → 60m (cap). Any successful scan resets to 2m.
 let scanInFlight = false
-setInterval(async () => {
+let consecutiveScanFailures = 0
+const RETRY_DELAYS_MS = [2 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 30 * 60 * 1000, 60 * 60 * 1000]
+
+// Re-schedule the interval when the failure count changes (only grows the
+// delay while failing; a success path above resets the counter but the
+// timer itself can't easily be reset — instead skip runs that are too
+// early by tracking the next-allowed time).
+let nextRetryAllowedAt = 0
+const retryTick = async () => {
   if (scanInFlight) return
   if (!needsBalance) return
+  const now = Date.now()
+  if (now < nextRetryAllowedAt) return // backing off — skip this tick
   scanInFlight = true
   try {
-    await runBalanceScan()
+    const results = await runBalanceScan()
+    const anyResolved = (results || []).some(
+      (r) => r && typeof r.balanceSats === 'number' && !r.error && !r.timedOut,
+    )
+    if (anyResolved) {
+      consecutiveScanFailures = 0
+      nextRetryAllowedAt = 0
+    } else {
+      consecutiveScanFailures++
+      const delayIdx = Math.min(consecutiveScanFailures - 1, RETRY_DELAYS_MS.length - 1)
+      nextRetryAllowedAt = now + RETRY_DELAYS_MS[delayIdx]
+      console.log(`balance scan still failing (${consecutiveScanFailures}x) — next retry in ${RETRY_DELAYS_MS[delayIdx] / 60000} min`)
+    }
   } catch (e) {
-    console.error(`background retry failed: ${e.message}`)
+    consecutiveScanFailures++
+    const delayIdx = Math.min(consecutiveScanFailures - 1, RETRY_DELAYS_MS.length - 1)
+    nextRetryAllowedAt = Date.now() + RETRY_DELAYS_MS[delayIdx]
+    console.error(`background retry failed: ${e.message}; next retry in ${RETRY_DELAYS_MS[delayIdx] / 60000} min`)
   } finally {
     scanInFlight = false
   }
-}, 2 * 60 * 1000).unref()
+}
+setInterval(retryTick, 2 * 60 * 1000).unref()
