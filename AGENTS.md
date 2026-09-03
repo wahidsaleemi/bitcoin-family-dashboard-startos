@@ -1,44 +1,31 @@
 # AGENTS.md
 
-This is a StartOS service-package repository — it builds a `.s9pk` for StartOS.
+This is a StartOS service-package repository — it builds a `.s9pk` for StartOS
+from the vendored dashboard application.
 
-Develop it inside a StartOS packaging workspace created by `start-cli s9pk init-workspace`,
-which provides the packaging guide and agent context one level up. If you're reading this in a
-bare clone with no workspace, the full guide is at <https://docs.start9.com/packaging>.
+## Repo layout
 
-**Start every task at the recipe index** — `../start-technologies/projects/start-sdk/docs/src/recipes.md`
-(or <https://docs.start9.com/packaging/recipes.html>). It maps an intent ("prompt the user to create
-admin credentials", "expose a web UI") to the constructs, the reference pages, and a named production
-package to copy. Find the recipe before you read this package's neighbours: a package you reach by
-grepping may be non-conformant, and the recipe outranks it.
+- `startos/` — the StartOS SDK package code (manifest, actions, daemons, health checks)
+- `bitcoinfamily/` — the vendored dashboard web app (static site; the Docker build context)
+- `Dockerfile`, `nginx-templates/`, `docker-entrypoint.d/`, `wallet-helper.mjs` — image build + runtime
+- `instructions.md` — user-facing docs (packed into the .s9pk)
+- `README.md` — technical reference; keep in step with `instructions.md` on every change
 
-Freshly scaffolded? Work the
-[New Package Checklist](../start-technologies/projects/start-sdk/docs/src/new-package-checklist.md)
-(or <https://docs.start9.com/packaging/new-package-checklist.html>) from top to bottom. It is a
-guide page, not a file in this repo — read it, don't copy it in.
+The packaged dashboard app is developed separately in
+`wahidsaleemi/bitcoin-family-dashboard` (inspired by `btcframe/bitcoinfamily`).
+It is vendored into `bitcoinfamily/` here; there are no upstream releases to
+track — see `UPDATING.md`.
 
-Keep `README.md` (technical reference for an AI support or administering agent) and
-`instructions.md` (end-user docs) in sync with your changes.
+## Conventions
 
-**Fix a defect you spot rather than reporting it** — you have the package open and the
-context to be sure. File **a GitHub issue on this repo** only when the call isn't yours to
-make: you can't pin the cause down, two defensible fixes exist, or it's too large to ride on
-the work in hand. An open issue is a report, not a queue — implement one when you're asked
-to or when it's labelled `Approved`, then close it with `Closes #<n>`.
-
-Don't record work in the repo instead: no `TODO.md`, no `NOTES.md`, no `PLAN.md`. What you
-verified, tried, and decided belongs in the commit message and the PR body.
-
-## This repo
-
-<!--
-TODO: write the bullets for this package, then delete this comment.
-
-Only what someone *changing* this package needs and cannot get from README.md or
-instructions.md. What belongs here, and what does not, is set out under
-"AGENTS.md and CLAUDE.md":
-
-  ../start-technologies/projects/start-sdk/docs/src/project-structure.md
-
-A simple package needs none of this — delete the section rather than padding it.
--->
+- Default branch is `master` (Start9 community convention). Work on a branch,
+  open a PR to `master`.
+- Release tags follow StartOS ExVer: `v<version>_<wrapper_rev>`, e.g. `v0.2.1_0`.
+  The manifest version in `startos/versions/current.ts` must match
+  (`0.2.1:0` ↔ tag `v0.2.1_0`).
+- Do not bump the package version for local dev-box-only changes — only when a
+  release is actually cut.
+- CI (`.github/workflows/`) delegates to `Start9Labs/start-technologies` and only
+  publishes once this repo lives in the Start9-Community org with secrets set.
+- Fix defects you spot rather than filing issues. Keep `README.md` and
+  `instructions.md` in sync with code changes.
