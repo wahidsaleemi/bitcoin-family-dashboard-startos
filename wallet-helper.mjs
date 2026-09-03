@@ -166,9 +166,16 @@ function parseDescriptor(descriptor) {
 function deriveAddress(parsed, i) {
   if (parsed.type === 'wsh') {
     // Multisig: each key's xpub -> branch -> index, sort pubkeys, redeem.
+    // IMPORTANT: honor the branch being scanned (parsed.trailing — set by
+    // balanceFromMempool to '/0' or '/1' when iterating the <0;1> multipath).
+    // Previously this used each key's OWN k.trailing || k.paths[0], which for
+    // a <0;1> descriptor always resolved to branch 0 — so scanning branch 0
+    // AND branch 1 derived the SAME addresses and double-counted every UTXO
+    // (330 sats displayed as 660). The scanned branch must win.
+    const scannedBranch = parsed.trailing || ''
+    const branch = scannedBranch || `/${(parsed.paths && parsed.paths[0]) || '0'}`
     const pubkeys = parsed.keys.map((k) => {
       let node = bip32.fromBase58(k.xpub)
-      const branch = k.trailing || `/${(k.paths && k.paths[0]) || '0'}`
       if (branch) node = derivePath(node, branch)
       return node.derive(i).publicKey
     })
