@@ -42,7 +42,7 @@ Bitcoin Family Dashboard is a fully client-side Bitcoin dashboard for tracking f
 
 ## Image and Container Runtime
 
-The service runs `nginx:alpine` serving the static dashboard. The image entrypoint seeds a default `config.json` on first boot (Satoshi, 0.125 BTC @ $40k cost basis), then nginx serves the site and proxies outbound price/background API calls so browsers never hit CORS or expose API keys.
+The service runs a custom image (built from the local `Dockerfile`, base `nginx:alpine`) serving the static dashboard from `bitcoinfamily/`. The web subcontainer runs two processes: **nginx** (serves the site, proxies outbound API calls so browsers never hit CORS or expose API keys) and the **wallet-helper** (a small Node process on internal port 8090 that derives watch-only wallet addresses and queries balances). The image entrypoint seeds a default `config.json` on first boot (Satoshi, 0.125 BTC @ $40k cost basis) via a `/docker-entrypoint.d` hook.
 
 ## Volume and Data Layout
 
@@ -52,11 +52,11 @@ The service runs `nginx:alpine` serving the static dashboard. The image entrypoi
 
 ## File Models
 
-- **`config.json`** — the single dashboard configuration file, stored on the `main` volume at `/data/config.json`. Seeded on first install with a default Satoshi member and Coinbase as the price source. Edited exclusively through the StartOS **Actions** menu; hand-edits survive restarts but may be overwritten by actions.
+- **`config.json`** (file model `store.json.ts` → `/data/config.json` on the `main` volume) — the single dashboard configuration file: family members (name, BTC amount, cost basis), price source, Pexels settings, and watch-only wallet bindings. Seeded on first install (via init) with a default Satoshi member and Coinbase as the price source. **Ownership:** written exclusively through the StartOS **Actions** menu; the package does not re-assert values on restart. A hand-edit to the file survives a restart but can be overwritten the next time an action writes it.
 
 ## Dependencies
 
-None.
+- **Bitcoin Core** (`bitcoind`) — **optional**. When installed, its RPC bridge is used to fetch watch-only wallet balances (fast, private) via the mounted `.cookie`. When absent, the package falls back to public address APIs (mempool.space, blockstream.info, blockcypher.com, blockchain.info) with automatic failover. The dependency is optional and never blocks startup.
 
 ## Network Access and Interfaces
 
@@ -84,11 +84,19 @@ None.
 
 ## Health Checks
 
-- **Web Interface** — verifies nginx is listening on port 80.
+- **Web Interface** (`web`) — verifies nginx is listening on port 80. A failure here means the dashboard itself is not being served.
+- **Watch-only wallet scan** (`watch-scan`) — queries the internal wallet-helper (`127.0.0.1:8090/api/scan-status`) from inside the web subcontainer. Reports:
+  - **loading** (animated indicator) while a watch-only balance scan is in progress — including the long first scan against rate-limited public APIs when no Bitcoin Core is installed;
+  - **success** (green check) when the scan is idle (balance resolved or no watch-only wallets configured);
+  - **failure** (red triangle) when the wallet-helper is unreachable or returns an invalid response.
+
+  Requires the `web` daemon to be up. A `failure` immediately after install/restart usually means the helper is still starting — it clears on the next poll once the helper is listening.
 
 ## Backups and Restore
 
-The `main` volume is snapshotted; `config.json` (members, price source, Pexels settings) is included in backups and restored on restore.
+**Strategy:** the `main` volume is snapshotted wholesale (`sdk.Backups.ofVolumes('main')`). It holds `config.json` — family members, price source, Pexels settings, and watch-only wallet descriptors — so those are included in backups and restored on restore.
+
+**Not backed up:** custom member avatars live in browser `localStorage` (per-device, client-side) and are intentionally not part of the StartOS volume — they are not captured in backups and are not restored. A restored instance has everything else (config, members, watch-only descriptors) and re-derives balances from the configured source on the next scan.
 
 ## Limitations and Differences
 
@@ -102,12 +110,12 @@ The `main` volume is snapshotted; `config.json` (members, price source, Pexels s
 ```yaml
 package_id: 'bitcoin-family-dashboard'
 image:
-  - nginx:alpine (custom entrypoint + templates)
+  - bitcoin-family-dashboard (built from local Dockerfile — nginx:alpine base with custom entrypoint + templates)
 architectures:
   - x86_64
   - aarch64
 subcontainers:
-  - web (nginx, port 80)
+  - web (nginx + wallet-helper, port 80)
 volumes:
   - main (config.json)
 file_models:
@@ -115,7 +123,10 @@ file_models:
 startos_managed_env_vars:
   - PRICE_UPSTREAM
   - PRICE_HOST
-dependencies: []
+  - PEXELS_API_KEY
+  - BITCOIND_RPC
+dependencies:
+  - bitcoind (optional — provides RPC + cookie for watch-only balances)
 interfaces:
   - ui (port 80)
 actions:
@@ -124,9 +135,11 @@ actions:
   - update-member
   - configure-price-source
   - configure-background
+  - configure-watch-only-wallet
 tasks: []
 health_checks:
   - web (port 80)
+  - watch-scan (wallet-helper scan status)
 ```
 
 ---
