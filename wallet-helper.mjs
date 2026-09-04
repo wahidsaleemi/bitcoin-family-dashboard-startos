@@ -322,9 +322,14 @@ async function balanceFromBitcoind(parsed, memberName) {
     if (!alreadyImported) {
       importRequests.push({
         desc: info.descriptor, // includes #checksum
-        // Rescan from 2024-01-01 — covers virtually all real wallet usage
-        // without the multi-minute full-history rescan on a 965k-block node.
-        timestamp: 1704067200,
+        // Full-history rescan (timestamp 0) on first import so funds from ANY
+        // date are seen. Previously 1704067200 (2024-01-01) — but real wallets
+        // can hold funds older than 2024 (verified: Satoshi has a funded
+        // address at index 37 whose tx is from April 2023; the 2024 cutoff
+        // made bitcoind under-report 0.02743255 instead of the true
+        // 0.05143255). The rescan is one-time (a few minutes); after import,
+        // getbalance is instant.
+        timestamp: 0,
         range: [0, SCAN_RANGE],
         active: true,
         internal: b === '1',
