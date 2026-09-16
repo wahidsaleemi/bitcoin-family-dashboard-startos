@@ -1,37 +1,36 @@
 # Updating the upstream version
 
+The dashboard is built from the `bitcoin-family-dashboard/` git submodule
+(<https://github.com/wahidsaleemi/bitcoin-family-dashboard>), pinned at an upstream
+commit. The `Dockerfile` copies the page's static files out of whatever commit the submodule
+points at; there is no `dockerTag`.
+
 ## Determining the upstream version
 
-This package vendors the Bitcoin Family Dashboard web application as a static
-site in `bitcoinfamily/`. The application has no tagged upstream releases — it
-is developed in the
-[wahidsaleemi/bitcoin-family-dashboard](https://github.com/wahidsaleemi/bitcoin-family-dashboard)
-repository (inspired by `btcframe/bitcoinfamily`, but substantially rewritten).
-The packaged dashboard tracks the `master` branch of that repository.
-
-To check whether the vendored copy is current:
+Upstream tags no releases and has no version string of its own — the package's upstream
+version is the developer's, agreed with them at each release. Check for new commits:
 
 ```sh
-gh release view -R wahidsaleemi/bitcoin-family-dashboard --json tagName -q .tagName
-# or, for the latest commit:
-gh api repos/wahidsaleemi/bitcoin-family-dashboard/commits/master --jq .sha
+git -C bitcoin-family-dashboard fetch origin && git -C bitcoin-family-dashboard log --oneline HEAD..origin/main
 ```
+
+The pin is the submodule's recorded commit in this repo's tree.
+
+The image base is `nginx:<version>-alpine` in the `Dockerfile`; bump it when Docker Hub's
+`nginx` `-alpine` tag moves. The wallet helper's own dependencies are pinned by
+`wallet-helper/package-lock.json`.
 
 ## Applying the bump
 
-1. Sync `bitcoinfamily/` from the app repository (it is the Docker build context
-   for the `bitcoin-family-dashboard` image — see `Dockerfile`):
+1. Move the submodule and stage the pointer:
+
    ```sh
-   rsync -a --delete /path/to/bitcoin-family-dashboard/ bitcoinfamily/
+   git -C bitcoin-family-dashboard checkout <commit>
+   git add bitcoin-family-dashboard
    ```
-   Keep the app's `index.html`, `assets/`, `images/`, `btc.png`, `favicon.png`,
-   and `screenshot.png`. Do **not** copy packaging files (`startos/`, `Dockerfile`,
-   `*.md` docs, etc.) into `bitcoinfamily/`.
 
-2. If the app's behavior changed in a user-visible way, update `instructions.md`
-   and `README.md` to match.
-
-3. Bump the package version in `startos/versions/current.ts` following the
-   [StartOS version rules](https://docs.start9.com/packaging/0.4.0.x/versions.html),
-   add release notes in all five languages, and tag `v<version>_0` per the
-   [Git Tag Conventions](https://docs.start9.com/packaging/0.4.0.x/versions.html#git-tag-conventions).
+2. Set `version` in `startos/versions/current.ts` to `<upstream>:0`. If only the packaging
+   changed, leave the submodule alone and increment the revision instead (`0.2.2:0` → `0.2.2:1`).
+3. Rewrite `releaseNotes` in that file for all five locales.
+4. If a `config.json` key was added or changed upstream, update `startos/fileModels/config.json.ts`
+   and the action that owns the key.

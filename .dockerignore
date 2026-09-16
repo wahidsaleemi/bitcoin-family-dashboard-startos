@@ -1,7 +1,7 @@
-node_modules/
-startos/
-.git/
+.git
+.gitmodules
+node_modules
+javascript
+ncc-cache
+docker-images
 *.s9pk
-.DS_Store
-bitcoin-family-dashboard-startos/
-start-technologies/

@@ -1,18 +1,12 @@
 #!/usr/bin/env node
 /**
  * Watch-only wallet balance helper.
- * Serves a single endpoint consumed by nginx: /api/wallet-balance
  *
- * Derives addresses from output descriptors (wpkh/pkh/sh(wpkh)/tr xpub-based)
- * and queries balances from:
- *   - local Bitcoin Core RPC (BITCOIND_RPC env, set by main.ts when the
- *     StartOS bitcoind package is installed), OR
- *   - public address APIs with multi-provider fallback: mempool.space,
- *     blockstream.info, blockcypher.com, blockchain.info (mempool.space is
- *     often unreachable from StartOS containers — AAAA-only DNS + no IPv6
- *     route — so the others keep balances working).
- *
- * Run on an internal port; nginx proxies /api/wallet-balance to it.
+ * Serves /api/wallet-balance (proxied by nginx) and /api/scan-status (read by
+ * the package's health check). Derives addresses from output descriptors and
+ * resolves balances from Bitcoin's RPC (BITCOIND_RPC, set by main.ts while the
+ * bitcoind package is installed) or from public address APIs with
+ * multi-provider fallback.
  */
 import http from 'node:http'
 import { createRequire } from 'node:module'
@@ -347,7 +341,10 @@ async function balanceFromBitcoind(parsed, memberName) {
     }
   }
 
-  // 3. getbalance — instant
+  // 3. A balance read mid-rescan is partial: report the rescan instead.
+  const info = await rpc('getwalletinfo', [], true)
+  if (info?.scanning) return { rescanning: info.scanning.progress ?? 0 }
+
   const bal = await rpc('getbalance', ['*', 1, true], true) // include watchonly
   if (bal === null) return null
   return Math.round(bal * 1e8)
@@ -359,9 +356,6 @@ const SCAN_CONCURRENCY = 5 // public APIs rate-limit; keep modest
 const SCAN_BATCH_DELAY_MS = 200 // pause between batches
 
 // ── Address-balance providers (tried in order) ──────────────────
-// mempool.space is the primary; StartOS containers often can't reach it
-// (AAAA-only DNS + no IPv6 route), so fall back to other public APIs that
-// expose the same per-address data. Each provider has a fetch + parser.
 // fetchWithRetry handles transient 429/5xx with backoff so a provider that
 // rate-limits us doesn't immediately look "dead".
 async function fetchWithRetry(url, { attempts = 3, baseDelay = 400, provider = '' } = {}) {
@@ -668,8 +662,14 @@ async function runBalanceScan() {
       try {
         // No fresh balance — mark that we still need one (health check will
         // keep showing "scanning" until a real balance is obtained).
-        needsBalance = true
-        scanStatus = { scanning: true, member: w.memberName, lastScanAt: scanStatus.lastScanAt, note: 'scanning' }
+        const viaBitcoind = (w.source ?? 'bitcoind') === 'bitcoind'
+        scanStatus = {
+          scanning: true,
+          member: w.memberName,
+          lastScanAt: scanStatus.lastScanAt,
+          note: viaBitcoind ? 'rescanning' : 'scanning',
+          progress: viaBitcoind ? 0 : undefined,
+        }
         const parsed = parseDescriptor(w.descriptor)
         let balanceSats = null
         let source = null
@@ -677,15 +677,23 @@ async function runBalanceScan() {
         let lastUsedIndex = -1
         let mempoolProviders = []
 
-        // Respect the per-wallet source setting, but fall back to the OTHER
-        // source if the chosen one fails — the user should always get a real
-        // balance if either bitcoind or mempool.space works.
-        const preferred = (w.source ?? 'bitcoind') === 'bitcoind' ? 'bitcoind' : 'mempool'
-        const order = preferred === 'bitcoind' ? ['bitcoind', 'mempool'] : ['mempool', 'bitcoind']
+        // A wallet on the local node never falls back to public APIs: the
+        // user chose it to keep their addresses off them. Public APIs fall
+        // back to the node when it is there.
+        const order = viaBitcoind ? ['bitcoind'] : ['mempool', 'bitcoind']
 
         for (const src of order) {
           if (src === 'bitcoind' && BITCOIND_RPC) {
             const r = await balanceFromBitcoind(parsed, w.memberName)
+            if (r !== null && typeof r === 'object') {
+              scanStatus = { scanning: true, member: w.memberName, lastScanAt: scanStatus.lastScanAt, note: 'rescanning', progress: r.rescanning }
+              return {
+                memberName: w.memberName,
+                descriptor: w.descriptor,
+                balanceSats: null,
+                rescanning: r.rescanning,
+              }
+            }
             if (r !== null) {
               balanceSats = r
               source = 'bitcoind'
@@ -705,8 +713,7 @@ async function runBalanceScan() {
         }
 
         if (source === null) {
-          // Both sources failed — report null (frontend shows error/blank)
-          console.error(`Both sources failed for ${w.memberName}`)
+          console.error(`No balance source available for ${w.memberName}`)
           return {
             memberName: w.memberName,
             descriptor: w.descriptor,
@@ -714,15 +721,12 @@ async function runBalanceScan() {
             addresses: [],
             lastUsedIndex: -1,
             source: 'none',
-            error: 'Both bitcoind and mempool.space failed',
+            error: 'No balance source available',
           }
         }
 
         // Cache the computed balance (even 0) so the next refresh is instant
         balanceCache.set(w.memberName, { balanceSats, source, at: Date.now() })
-
-        // We have a real balance now — the health check can show idle again.
-        needsBalance = false
 
         return {
           memberName: w.memberName,
@@ -757,7 +761,15 @@ async function runBalanceScan() {
       results.push(result)
     }
 
-    scanStatus = { scanning: false, member: '', lastScanAt: new Date().toISOString(), note: needsBalance ? 'waiting for providers' : '' }
+    const pending = results.find((r) => typeof r.balanceSats !== 'number')
+    needsBalance = !!pending
+    scanStatus = {
+      scanning: false,
+      member: pending?.memberName ?? '',
+      lastScanAt: new Date().toISOString(),
+      note: !pending ? '' : typeof pending.rescanning === 'number' ? 'rescanning' : 'waiting for providers',
+      progress: pending?.rescanning,
+    }
 
     return results
   } catch (e) {
@@ -767,9 +779,8 @@ async function runBalanceScan() {
   }
 }
 
-// Probe public address providers before serving so unreachable ones
-// (e.g. mempool.space from containers with no IPv6 route) are skipped
-// quickly instead of stalling every balance query with connect timeouts.
+// Probe public address providers before serving so unreachable ones are
+// skipped quickly instead of stalling every balance query with connect timeouts.
 probeAllProviders().then(() => {
   http.createServer(handle).listen(PORT, () => {
     console.log(`wallet-helper listening on :${PORT} (bitcoind: ${BITCOIND_RPC || 'none -> mempool'})`)

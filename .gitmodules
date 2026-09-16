@@ -1,0 +1,3 @@
+[submodule "bitcoin-family-dashboard"]
+	path = bitcoin-family-dashboard
+	url = https://github.com/wahidsaleemi/bitcoin-family-dashboard

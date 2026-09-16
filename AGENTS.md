@@ -1,31 +1,36 @@
 # AGENTS.md
 
-This is a StartOS service-package repository — it builds a `.s9pk` for StartOS
-from the vendored dashboard application.
+This is a StartOS service-package repository — it builds a `.s9pk` for StartOS.
 
-## Repo layout
+Develop it inside a StartOS packaging workspace created by `start-cli s9pk init-workspace`,
+which provides the packaging guide and agent context one level up. If you're reading this in a
+bare clone with no workspace, the full guide is at <https://docs.start9.com/packaging>.
 
-- `startos/` — the StartOS SDK package code (manifest, actions, daemons, health checks)
-- `bitcoinfamily/` — the vendored dashboard web app (static site; the Docker build context)
-- `Dockerfile`, `nginx-templates/`, `docker-entrypoint.d/`, `wallet-helper.mjs` — image build + runtime
-- `instructions.md` — user-facing docs (packed into the .s9pk)
-- `README.md` — technical reference; keep in step with `instructions.md` on every change
+**Start every task at the recipe index** — `../start-technologies/projects/start-sdk/docs/src/recipes.md`
+(or <https://docs.start9.com/packaging/recipes.html>). It maps an intent ("prompt the user to create
+admin credentials", "expose a web UI") to the constructs, the reference pages, and a named production
+package to copy. Find the recipe before you read this package's neighbours: a package you reach by
+grepping may be non-conformant, and the recipe outranks it.
 
-The packaged dashboard app is developed separately in
-`wahidsaleemi/bitcoin-family-dashboard` (inspired by `btcframe/bitcoinfamily`).
-It is vendored into `bitcoinfamily/` here; there are no upstream releases to
-track — see `UPDATING.md`.
+Freshly scaffolded? Work the
+[New Package Checklist](../start-technologies/projects/start-sdk/docs/src/new-package-checklist.md)
+(or <https://docs.start9.com/packaging/new-package-checklist.html>) from top to bottom. It is a
+guide page, not a file in this repo — read it, don't copy it in.
 
-## Conventions
+Keep `README.md` (technical reference for an AI support or administering agent) and
+`instructions.md` (end-user docs) in sync with your changes.
 
-- Default branch is `master` (Start9 community convention). Work on a branch,
-  open a PR to `master`.
-- Release tags follow StartOS ExVer: `v<version>_<wrapper_rev>`, e.g. `v0.2.1_0`.
-  The manifest version in `startos/versions/current.ts` must match
-  (`0.2.1:0` ↔ tag `v0.2.1_0`).
-- Do not bump the package version for local dev-box-only changes — only when a
-  release is actually cut.
-- CI (`.github/workflows/`) delegates to `Start9Labs/start-technologies` and only
-  publishes once this repo lives in the Start9-Community org with secrets set.
-- Fix defects you spot rather than filing issues. Keep `README.md` and
-  `instructions.md` in sync with code changes.
+**Bugs and feature requests are GitHub issues on this repo** — file them as you find them.
+Don't record work in the repo instead: no `TODO.md`, no `NOTES.md`, no `PLAN.md`. What you
+verified, tried, and decided belongs in the commit message and the PR body.
+
+## This repo
+
+- **The application is the `bitcoin-family-dashboard/` submodule and is never edited here.** Fixes to
+  the page go to <https://github.com/wahidsaleemi/bitcoin-family-dashboard>; this repo moves the pin.
+  `wallet-helper/` is this package's own code and is edited here.
+- **`config.json` is served to the browser verbatim** (`location = /config.json` in
+  `nginx-templates/default.conf.template`), so nothing that must stay private can go in it.
+- **A bitcoind-backed balance imports the descriptor with `timestamp: 0`.** That is a full rescan
+  on the user's node and the cost the README documents; don't "speed it up" with `'now'`, which
+  silently drops every pre-existing coin.
