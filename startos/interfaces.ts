@@ -6,7 +6,7 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
   const uiMulti = sdk.MultiHost.of(effects, 'main')
   const uiOrigin = await uiMulti.bindPort(uiPort, { protocol: 'http' })
   const ui = sdk.createInterface(effects, {
-    name: i18n('Web Interface'),
+    name: i18n('Web UI'),
     id: 'ui',
     description: i18n('The Bitcoin Family Dashboard web interface'),
     type: 'ui',

@@ -1,15 +1,33 @@
 export const short = {
-  en_US: 'Personal Bitcoin dashboard for tracking family BTC holdings and prices',
-  es_ES: 'Panel personal de Bitcoin para seguimiento de tenencias familiares y precios',
-  de_DE: 'Persönliches Bitcoin-Dashboard zum Verfolgen von Familien-BTC-Beständen und Preisen',
-  pl_PL: 'Osobisty panel Bitcoin do śledzenia rodzinnych portfeli BTC i cen',
-  fr_FR: 'Tableau de bord Bitcoin personnel pour suivre les avoirs BTC familiaux et les prix',
+  en_US: "Track your family's bitcoin holdings and the live price",
+  es_ES: 'Sigue las tenencias de bitcoin de tu familia y el precio en vivo',
+  de_DE: 'Bitcoin-Bestände der Familie und den Live-Kurs im Blick',
+  pl_PL: 'Śledź bitcoinowe zasoby rodziny i kurs na żywo',
+  fr_FR: 'Suivez les avoirs en bitcoin de votre famille et le cours en direct',
 }
 
 export const long = {
-  en_US: 'Bitcoin Family Dashboard is a fully client-side Bitcoin dashboard that tracks family BTC holdings, real-time prices, 24-hour changes, and historical performance. Includes dynamic charts, P&L per member, and historical price comparisons.',
-  es_ES: 'Bitcoin Family Dashboard es un panel de Bitcoin completamente del lado del cliente que rastrea las tenencias de BTC familiares, precios en tiempo real, cambios en 24 horas y rendimiento histórico. Incluye gráficos dinámicos, P&L por miembro y comparaciones históricas de precios.',
-  de_DE: 'Bitcoin Family Dashboard ist ein vollständig clientseitiges Bitcoin-Dashboard, das Familien-BTC-Bestände, Echtzeitpreise, 24-Stunden-Änderungen und die historische Performance verfolgt. Enthält dynamische Diagramme, Gewinn/Verlust pro Mitglied und historische Preiskomparison.',
-  pl_PL: 'Bitcoin Family Dashboard to w pełni kliencki panel Bitcoin śledzący rodzinne portfele BTC, ceny w czasie rzeczywistym, zmiany 24-godzinne i wyniki historyczne. Zawiera dynamiczne wykresy, zysk/stratę na członka i porównania cen historycznych.',
-  fr_FR: 'Bitcoin Family Dashboard est un tableau de bord Bitcoin entièrement côté client qui suit les avoirs BTC familiaux, les prix en temps réel, les variations sur 24 heures et les performances historiques. Inclut des graphiques dynamiques, un P&L par membre et des comparaisons de prix historiques.',
+  en_US:
+    "Bitcoin Family Dashboard is a single-page dashboard that shows each family member's bitcoin holdings, their value at the live price, profit and loss against their average cost basis, and 30-day, 1-year and 10-year price charts. Holdings can be entered by hand or read from a watch-only wallet descriptor, using Bitcoin on this server when it is installed.",
+  es_ES:
+    'Bitcoin Family Dashboard es un panel de una sola página que muestra las tenencias de bitcoin de cada miembro de la familia, su valor al precio en vivo, la ganancia o pérdida frente a su precio medio de compra y gráficos de precio de 30 días, 1 año y 10 años. Las tenencias pueden introducirse a mano o leerse de un descriptor de monedero de solo lectura, usando Bitcoin en este servidor cuando está instalado.',
+  de_DE:
+    'Bitcoin Family Dashboard ist ein einseitiges Dashboard, das die Bitcoin-Bestände jedes Familienmitglieds, ihren Wert zum Live-Kurs, Gewinn und Verlust gegenüber dem durchschnittlichen Kaufpreis sowie Kursdiagramme über 30 Tage, 1 Jahr und 10 Jahre zeigt. Bestände können von Hand eingegeben oder aus einem Watch-only-Wallet-Deskriptor gelesen werden, wobei Bitcoin auf diesem Server verwendet wird, wenn es installiert ist.',
+  pl_PL:
+    'Bitcoin Family Dashboard to jednostronicowy panel pokazujący zasoby bitcoina każdego członka rodziny, ich wartość według bieżącego kursu, zysk lub stratę względem średniej ceny zakupu oraz wykresy kursu z 30 dni, 1 roku i 10 lat. Zasoby można wpisać ręcznie lub odczytać z deskryptora portfela tylko do odczytu, korzystając z Bitcoina na tym serwerze, gdy jest zainstalowany.',
+  fr_FR:
+    "Bitcoin Family Dashboard est un tableau de bord d'une seule page qui affiche les avoirs en bitcoin de chaque membre de la famille, leur valeur au cours en direct, le gain ou la perte par rapport à leur prix d'achat moyen, ainsi que des graphiques de cours sur 30 jours, 1 an et 10 ans. Les avoirs peuvent être saisis à la main ou lus depuis un descripteur de portefeuille en lecture seule, en utilisant Bitcoin sur ce serveur lorsqu'il est installé.",
+}
+
+export const bitcoindDescription = {
+  en_US:
+    'Reads watch-only wallet balances from your own node instead of public address APIs.',
+  es_ES:
+    'Lee los saldos de los monederos de solo lectura desde tu propio nodo en lugar de API públicas de direcciones.',
+  de_DE:
+    'Liest Watch-only-Wallet-Salden vom eigenen Node statt von öffentlichen Adress-APIs.',
+  pl_PL:
+    'Odczytuje salda portfeli tylko do odczytu z własnego węzła zamiast z publicznych API adresów.',
+  fr_FR:
+    "Lit les soldes des portefeuilles en lecture seule depuis votre propre nœud plutôt que depuis des API d'adresses publiques.",
 }
